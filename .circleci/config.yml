@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  slack: circleci/slack@4.3
+
 commands:
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
@@ -37,6 +40,15 @@ commands:
             fi
             
 jobs:
+  notify:
+    docker:
+      - image: 'cimg/base:stable'
+    steps:
+      - slack/notify:
+          event: fail 
+          template: basic_fail_1 
+          channel: '#devOps' 
+
   build-frontend:
     docker:
       - image: circleci/node:13.8.0
@@ -84,9 +96,6 @@ jobs:
            cd frontend 
            npm install
            npm run test 
-      - save_cache:
-          paths: [backend/node_modules]
-          key: frontend-build
 
   test-backend:
     docker:
@@ -107,9 +116,6 @@ jobs:
            cd backend
            npm install
            npm run test 
-      - save_cache:
-          paths: [backend/node_modules]
-          key: backend-build
             
   scan-frontend:
     docker:
@@ -123,9 +129,6 @@ jobs:
           command: |
            cd frontend 
            npm audit fix --audit-level=critical --force 
-      - save_cache:
-          paths: [frontend/node_modules]
-          key: frontend-build
 
   scan-backend:
     docker:
@@ -138,10 +141,11 @@ jobs:
           name: scan front-end 
           command: |
            cd backend
-           npm audit fix --audit-level=critical --force 
-      - save_cache:
-          paths: [backend/node_modules]
-          key: backend-build
+           npm audit #fix --audit-level=critical --force 
+      - slack/notify:
+          channel: C022RQRDUNP 
+          event: fail
+          template: basic_fail_1
 
           #  deploy-infrastructure:
           #    docker:
@@ -322,6 +326,8 @@ workflows:
            requires: [build-backend]
        - scan-frontend:
            requires: [build-frontend]
+       - notify:
+           context: slack-secrets
     #   - deploy-infrastructure:
     #       requires: [test-frontend, test-backend, scan-frontend, scan-backend]
     #       filters:
