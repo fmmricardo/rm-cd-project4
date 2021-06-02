@@ -57,8 +57,6 @@ jobs:
       - image: circleci/node:13.8.0
     steps:
       - checkout
-      - restore_cache:
-          keys: [frontend-build]
       - run:
           name: Build front-end
           command: |
@@ -178,9 +176,9 @@ jobs:
           name: Add back-end ip to ansible inventory
           command: |
              INSTSNCE_IP=$(aws ec2 describe-instances \
-             --filters "Name=tag:Name,Value:backend-${CIRCLE_WORKFLOW_ID}" \
-             --query "Reservations[*].instances[*].PublicIpAdress" \
-             --output text>>./.circleci/ansible.inventory.txt)
+             --filters Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID} \
+             --query "Reservations[*].Instances[*].PublicIpAdress" \
+             --output text >>./.circleci/ansible.inventory.txt)
 
                echo ${INSTSNCE_IP} >> ./.circleci/ansible/inventory.txt
                echo INSTSNCE_IP ${INSTSNCE_IP}
@@ -197,37 +195,36 @@ jobs:
   
   configure-infrastructure:
     docker:
-      - image: python:3.7-alpine3.11 
+      - image: python:3.7-alpine3.12 
       
     steps:
-       - checkout
-       - add_ssh_keys:
-            fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d']
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d']
 
-       - attach_workspace:
-             at: ~/
-       - run: ./.circleci/ansible 
+      - attach_workspace:
+            at: ./.circleci/ansible 
 
-       - run:
-           name: Install dependencies
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update ansible 
+            apk add --update curl
+            apk add --update gzip
+            apk add --update nodejs 
+            apk add --update py3-pip
+            apk add --update tar
+            pip3 install awscli
+
+      - run:
+           name: Configure server
+           working_directory: ./.circleci/ansible 
            command: |
-             apk add --update ansible 
-             apk add --update curl
-             apk add --update gzip
-             apk add --update nodejs 
-             apk add --update py3-pip
-             apk add --update tar
-             pip3 install awscli
+             ansible-playbook -i inventory main.yml
 
-       - run:
-            name: Configure server
-            working_directory: ./.circleci/ansible 
-            command: |
-              ansible-playbook -i inventory main.yml
-
-              exit 1
-        - destroy-environment
-       
+             #exit 1
+      - destroy-environment
+      
 
           # Here's where you will add some code to rollback on failure      
   
