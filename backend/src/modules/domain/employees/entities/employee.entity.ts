@@ -1,4 +1,5 @@
-import * as moment from 'moment-timezone';
+//import * as moment from 'moment-timezone';
+const moment = require('moment');
 import { AggregateRoot } from '../../../common/entities';
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { CreateEmployee } from '../commands/create-employee.command';
@@ -32,14 +33,11 @@ export class Employee extends AggregateRoot<number> {
       this.bankName = params.bankName;
       this.birthdate = getDateFromString(params.birthdate);
     }
-
     // this.apply(new EmployeeCreated(this.id, this.firstName));
   }
-
   @PrimaryGeneratedColumn()
   //change <string> to <number> in line 8 to fix the compile error
   id: number;
-
   @Column({ length: 100 })
   public firstName: string;
 
@@ -121,7 +119,7 @@ export enum SalaryType {
 }
 
 export function getDateFromString(date: string): Date {
-  return moment(date).format('M/D/YYYY');
+  return moment(date).format('MM-DD-YYYY');
 }
 
 function getGenderFromEnum(gender: string): Gender {
