@@ -242,11 +242,10 @@ jobs:
           name: Run migrations
           command: |
             cd backend
-            npm audit fix --force
             npm install
             touch migrations.txt
             npm run migrations >> migrations.txt
-            cat migration.txt 
+            cat migrations.txt 
             #exit 1
       - run:
           name: Send migration results to memstash
