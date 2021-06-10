@@ -62,6 +62,9 @@ jobs:
           command: |
            cd frontend
            npm install
+           sudo npm update
+           sudo npm install npm@latest -g
+           sudo npm install webpack
            npm run build
       - save_cache:
           paths: [frontend/node_modules]
@@ -204,7 +207,7 @@ jobs:
     steps:
       - checkout
       - add_ssh_keys:
-          fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d'] #['e9:17:e0:16:aa:a7:e1:98:39:35:5c:43:ca:3e:3f:99'] 
+          fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d']
 
       - attach_workspace:
             at: ./.circleci/ansible 
@@ -225,12 +228,12 @@ jobs:
             #       ansible all --list-hosts
 
       - run:
-           name: Configure server
-           working_directory: ./.circleci/ansible 
-           command: |
-             echo PWD $(pwd)
-             ansible-playbook -i inventory.txt configure-server.yml
-             #exit 1
+          name: Configure server
+          working_directory: ./.circleci/ansible 
+          command: |
+            echo PWD $(pwd)
+            ansible-playbook -i inventory.txt configure-server.yml
+            #exit 1
       - destroy-environment
   
   run-migrations:
@@ -239,24 +242,36 @@ jobs:
     steps:
       - checkout
       - run:
+          name: install awscli
+          command: |
+            sudo apt-get -y update
+            sudo apt-get -y install python \
+              python-pip \
+              python-setuptools \
+              curl
+            pip install
+            pip --no-cache-dir install --upgrade awscli
+
+      - run:
           name: Run migrations
           command: |
-            cd backend
+            cd backend 
+            sudo npm i -g pm2
+            sudo npm install typescript
             npm install
             touch migrations.txt
-            npm run migrations >> migrations.txt
-            cat migrations.txt 
-            #exit 1
+            npm run migrations > migrations.txt
+            cat migrations.txt
       - run:
           name: Send migration results to memstash
           command: |
             if grep "has been executed successfully" migrations.txt
             then
-            curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
+            curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID}" \
             --request PUT \
             --data "1" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID}
             else
-            curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
+            curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID}" \
             --request PUT \
             --data "0" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID}
             fi
