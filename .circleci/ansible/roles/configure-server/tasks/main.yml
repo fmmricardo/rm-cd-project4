@@ -14,11 +14,17 @@
   apt:
     autoremove: yes
 
-- name: Install NodeJS
+- name: "install node"
   become: yes
-  shell: |
-    curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash -
-    apt-get install -y nodejs
+  apt:
+    name: nodejs
+    state: present
+  
+- name: "install npm"
+  become: yes
+  apt:
+    name: npm
+    state: present
 
 - name: Install PM2
   become: yes

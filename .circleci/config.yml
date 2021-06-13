@@ -30,18 +30,18 @@ commands:
     steps:
       - run:
           name: Revert migrations
-          # Add when this will run
+          when: on_fail
           command: |
             # Curl command here to see if there was a successful migration associated with the workflow id, store result in SUCCESS variable
-            SUCCESS = 1
-            if(( $SUCCESS==1 )); 
+            SUCCESS=$(curl -H "token:  ${CIRCLE_WORKFLOW_ID}" \
+              --request GET https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID})
+            if(( $SUCCESS==1 ));
             then
-            #  cd ~/project/backend
-            #  npm install
-            #  Add revert code here. You can find this in the Getting Started section.
+              cd ~/project/backend
+              npm install
+              npm run migrations:revert
               exit 1
-            fi
-            
+            fi            
 jobs:
   notify:
     docker:
@@ -57,14 +57,16 @@ jobs:
       - image: circleci/node:13.8.0
     steps:
       - checkout
+      - restore_cache:
+          keys: [frontend-build]
       - run:
           name: Build front-end
           command: |
            cd frontend
-           npm install
-           sudo npm update
-           sudo npm install npm@latest -g
-           sudo npm install webpack
+            npm install
+            sudo npm update
+            sudo npm install npm@latest -g
+            sudo npm install webpack
            npm run build
       - save_cache:
           paths: [frontend/node_modules]
@@ -99,7 +101,7 @@ jobs:
           command: |
            cd frontend
            npm install
-           npm run test
+           npm run test4ci
 
   test-backend:
     docker:
@@ -222,10 +224,6 @@ jobs:
             apk add --update py3-pip
             apk add --update tar
             pip3 install awscli
-            # - run:
-            #     name: verify ansible hosts
-            #     command: |
-            #       ansible all --list-hosts
 
       - run:
           name: Configure server
@@ -277,57 +275,88 @@ jobs:
             fi
       - revert-migrations
 
-      # exit 1
-      #
-      # deploy-frontend:
-      #   docker:
-      #     - image: amazon/aws-cli
-      #   steps:
-      #     - checkout # Checkout code from git
-      #     - run:
-      #         name: Install dependencies
-      #         command: |
-      #           yum -y install tar gzip 
-      #           curl -sL https://rpm.nodesource.com/setup_lts.x | bash -
-      #           yum -y install nodejs
-      #     - run:
-      #         name: Get backend url
-      #         command: |
-      #           BACKEND_IP=$(curl -H "token: ${CIRCLE_WORKFLOW_ID}" \
-      #             --request GET https://api.memstash.io/values/BACKEND_IP)
+  deploy-frontend:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            yum install sudo -y
+            curl -sL https://rpm.nodesource.com/setup_10.x | sudo bash -
+            yum install nodejs -y
+            node --version
+            npm --version
+            yum install tar -y
+            yum install gzip -y
 
-      #           export API_URL="http://${BACKEND_IP}:3030"
-      #           echo "${API_URL}"
+      - attach_workspace:
+          at: ~/
 
-      #           cd frontend
-      #           npm install
-      #           npm run build
-      #     - run:
-      #         name: Deploy frontend objects
-      #         command: |
-      #           aws s3 cp .frontend/dist s3://udapeople-${CIRCLE_WORKFLOW_ID}/ --recursive
+      - run:
+          name: Get backend url
+          command: |
+            cd frontend
+            touch .env
+            BACKEND_IP=$(curl -H "token: ce-${CIRCLE_WORKFLOW_ID}" --request GET https://api.memstash.io/values/backend-ip)
+            echo "$BACKEND_IP"
+            export API_URL="http://${BACKEND_IP}:3030"
+            echo API_URL="$API_URL" >> .env
+            cat .env
+      - run:
+          name: Deploy frontend objects
+          command: |
+            cd frontend
+            npm install
+            sudo npm install webpack
+            npm run build:prod
+            aws s3 cp ~/project/frontend/dist s3://udapeople-"${CIRCLE_WORKFLOW_ID}" --recursive
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - project/frontend/.env
 
-      #     - destroy-environment
-      # your code here
-      #Here's where you will add some code to rollback on failure      
-      #                    
-      #  deploy-backend:
-      #    docker:
-      #      # Docker image here that supports Ansible
-      #    steps:
-      #      # Checkout code from git
-      #      # Add ssh keys with fingerprint
-      #      # attach workspace
-      #      - run:
-      #          name: Install dependencies
-      #          command: |
-      #            # your code here
-      #      - run:
-      #          name: Deploy backend
-      #          command: |
-      #            # your code here
-      #      # Here's where you will add some code to rollback on failure  
-      #
+      - destroy-environment
+                    
+  deploy-backend:
+    docker:
+      - image: python:3.7-alpine3.12 
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d']
+  
+      - attach_workspace:
+            at: ~/
+      
+      - run:
+          name: Install dependencies
+          command: |
+            apk add ansible
+            apk add curl
+            pip3 install awscli
+      - run:
+          name: Deploy backend
+          command: |
+            echo PWD $(pwd)
+            echo ENVIRONMENT=production >> "backend/.env"
+            echo NODE_ENV=production >> "backend/.env"
+            echo TYPEORM_CONNECTION=postgres >> "backend/.env"
+            echo TYPEORM_MIGRATIONS_DIR=./src/migrations >> "backend/.env"
+            echo TYPEORM_ENTITIES=./src/modules/domain/**/*.entity.ts >> "backend/.env"
+            echo TYPEORM_MIGRATIONS=./src/migrations/*.ts >> "backend/.env"
+            echo TYPEORM_HOST=$TYPEORM_HOST >> "backend/.env"
+            echo TYPEORM_PORT=$TYPEORM_PORT >> "backend/.env"
+            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> "backend/.env"
+            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> "backend/.env"
+            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> "backend/.env"
+            cat backend/.env
+            cd .circleci/ansible
+            ansible-playbook -i inventory.txt deploy-backend.yml
+      
+      - destroy-environment
+
       #  smoke-test:
       #    docker:
       #      # Lightweight Docker image 
@@ -411,10 +440,10 @@ workflows:
            requires: [deploy-infrastructure]
        - run-migrations:
            requires: [configure-infrastructure]
-    #   - deploy-frontend:
-    #       requires: [run-migrations]
-    #   - deploy-backend:
-    #       requires: [run-migrations]
+       - deploy-frontend:
+           requires: [run-migrations]
+       - deploy-backend:
+           requires: [run-migrations]
     #   - smoke-test:
     #       requires: [deploy-backend, deploy-frontend]
     #   - cloudfront-update:
