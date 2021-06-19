@@ -144,10 +144,11 @@ jobs:
       - restore_cache:
           keys: [backend-build]
       - run:
-          name: scan front-end
+          name: scan back-end
           command: |
            cd backend
-           npm audit fix --audit-level=critical --force
+           #npm audit fix --audit-level=critical --force
+           npm audit fix 
       - slack/notify:
           channel: C022RQRDUNP
           event: fail
@@ -165,36 +166,31 @@ jobs:
             aws cloudformation deploy \
               --template-file .circleci/files/backend.yml \
               --tags project=udapeople-backend-${CIRCLE_WORKFLOW_ID} \
-              --stack-name udapeople-backend-${CIRCLE_WORKFLOW_ID} \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"  
-              #exit 1
+               --stack-name udapeople-backend-${CIRCLE_WORKFLOW_ID} \
+               --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
       - run:
           name: Ensure front-end infrastructure exist
           command: |
               aws cloudformation deploy \
                 --template-file .circleci/files/frontend.yml \
                 --tags project=udapeople-frontend-${CIRCLE_WORKFLOW_ID} \
-                --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID} \
-                --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
-                #exit 1
+                 --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID} \
+                 --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
       - run:
           name: Add back-end ip to ansible inventory
           command: |
              echo "[web]" > .circleci/ansible/inventory.txt
-             INSTANCE_IP=$(aws ec2 describe-instances \
-             --filters Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID} \
-             --query 'Reservations[*].Instances[*].PublicIpAddress' \
-             --output text >> ./.circleci/ansible/inventory.txt)
+             BACKEND_IP=$(aws ec2 describe-instances \
+              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --output text)
+             echo ${BACKEND_IP} >> ./.circleci/ansible/inventory.txt
+             echo BACKEND_IP ${BACKEND_IP}
 
-              echo ${INSTANCE_IP} >> ./.circleci/ansible/inventory.txt
-              echo INSTANCE_IP ${INSTANCE_IP}
-
-              cat ./.circleci/ansible/inventory.txt
-
-              curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
-              --request PUT \
-              --data "$INSTANCE_IP" https://api.memstash.io/values/INSTANCE_IP
-              #exit 1
+             cat ./.circleci/ansible/inventory.txt
+             curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
+             --request PUT \
+             --data "$BACKEND_IP" https://api.memstash.io/values/BACKEND_IP
       - persist_to_workspace:
           root: .circleci/ansible
           paths:
@@ -256,9 +252,21 @@ jobs:
             cd backend 
             sudo npm i -g pm2
             sudo npm install typescript
+
+            echo ENVIRONMENT=$ENVIRONMENT > ".env"
+            echo TYPEORM_CONNECTION=$TYPEORM_CONNECTION >> ".env"
+            echo TYPEORM_MIGRATIONS_DIR=$TYPEORM_MIGRATIONS_DIR >> ".env"
+            echo TYPEORM_ENTITIES=$TYPEORM_ENTITIES >> ".env"
+            echo TYPEORM_MIGRATIONS=$TYPEORM_MIGRATIONS >> ".env"
+            echo TYPEORM_HOST=$TYPEORM_HOST >> ".env"
+            echo TYPEORM_PORT=$TYPEORM_PORT >> ".env"
+            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> ".env"
+            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> ".env"
+            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> ".env"
+
             npm install
             touch migrations.txt
-            npm run migrations > migrations.txt
+            npm run migrations >> migrations.txt
             cat migrations.txt
       - run:
           name: Send migration results to memstash
@@ -293,20 +301,24 @@ jobs:
 
       - attach_workspace:
           at: ~/
-
+            
       - run:
           name: Get backend url
           command: |
-            cd frontend
-            touch .env
-            BACKEND_IP=$(curl -H "token: ce-${CIRCLE_WORKFLOW_ID}" --request GET https://api.memstash.io/values/backend-ip)
-            echo "$BACKEND_IP"
-            export API_URL="http://${BACKEND_IP}:3030"
-            echo API_URL="$API_URL" >> .env
-            cat .env
+            #cd frontend
+            #touch .env
+            
+            BACKEND_IP=`cat .circleci/ansible/inventory.txt | head -2 | tail -1`
+            # BACKEND_IP=$(curl -H "token: ${CIRCLE_WORKFLOW_ID}" \
+            #   --request GET https://api.memstash.io/values/BACKEND_IP)
+            API_URL="http://${BACKEND_IP}:3030"
+            echo "API_URL: ${API_URL}"
+            export API_URL=${API_URL}
+            echo "${API_URL}" >> "frontend/.env"
       - run:
           name: Deploy frontend objects
           command: |
+            # cd frontend
             cd frontend
             npm install
             sudo npm install webpack
@@ -329,7 +341,7 @@ jobs:
   
       - attach_workspace:
             at: ~/
-      
+            #at: /tmp/.circleci/ansible
       - run:
           name: Install dependencies
           command: |
@@ -353,33 +365,45 @@ jobs:
             echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> "backend/.env"
             cat backend/.env
             cd .circleci/ansible
+            BACKEND_IP=`cat inventory.txt | head -2 | tail -1`
+            echo "BACKEND_IP: ${BACKEND_IP}"
             ansible-playbook -i inventory.txt deploy-backend.yml
       
       - destroy-environment
 
-      #  smoke-test:
-      #    docker:
-      #      # Lightweight Docker image 
-      #    steps:
-      #      # Checkout code from git
-      #      - run:
-      #          name: Install dependencies
-      #          command: |
-      #            # your code here
-      #      - run:
-      #          name: Get backend url
-      #          command: |
-      #            # your code here
-      #      - run:
-      #          name: Backend smoke test.
-      #          command: |
-      #            # your code here
-      #      - run:
-      #          name: Frontend smoke test.
-      #          command: |
-      #            # your code here
-      #      # Here's where you will add some code to rollback on failure  
-      #
+  smoke-test:
+    docker:
+      - image: python:3.7-alpine3.12 
+    steps:
+      - checkout 
+      - run:
+          name: Install dependencies
+          command: |
+            pip install awscli
+            apk add --update tar gzip curl nodejs npm
+      - run:
+          name: smoke test frontend
+          command: |
+            URL="http://udapeople-frontend-${CIRCLE_WORKFLOW_ID}.s3-website-${AWS_DEFAULT_REGION}.amazonaws.com/#/employees"            
+            if curl -s ${URL} | grep "Welcome"
+              then
+                return 1
+              else
+                return 0
+            fi
+      - run:
+          name: smoke test for backend.
+          command: |
+            BACKEND_IP=$(aws ec2 describe-instances \
+              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
+              --query "Reservations[*].Instances[*].PublicIpAddress" \
+              --output text)
+            echo "http://${BACKEND_IP}:3030/api/status"
+            curl "http://${BACKEND_IP}:3030/api/status"
+
+
+      - destroy-environment 
+      - revert-migrations
       #  cloudfront-update:
       #    docker:
       #      # Docker image here that supports AWS CLI
@@ -444,8 +468,8 @@ workflows:
            requires: [run-migrations]
        - deploy-backend:
            requires: [run-migrations]
-    #   - smoke-test:
-    #       requires: [deploy-backend, deploy-frontend]
+           # - smoke-test:
+           #     requires: [deploy-backend, deploy-frontend]
     #   - cloudfront-update:
     #       requires: [smoke-test]
     #   - cleanup:
