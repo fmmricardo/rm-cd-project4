@@ -84,6 +84,7 @@ jobs:
           command: |
            cd backend
            npm install
+           sudo npm install typescript
            npm run build
       - save_cache:
           paths: [backend/node_modules]
@@ -147,7 +148,7 @@ jobs:
           name: scan back-end
           command: |
            cd backend
-           #npm audit fix --audit-level=critical --force
+           npm audit fix --audit-level=critical --force
            npm audit fix 
       - slack/notify:
           channel: C022RQRDUNP
@@ -179,24 +180,13 @@ jobs:
       - run:
           name: Add back-end ip to ansible inventory
           command: |
-             #echo "[web]" > .circleci/ansible/inventory.txt
-             #BACKEND_IP=$(aws ec2 describe-instances \
-             # --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
-             # --query 'Reservations[*].Instances[*].PublicIpAddress' \
-             # --output text)
-             #echo ${BACKEND_IP} >> ./.circleci/ansible/inventory.txt
-             #echo BACKEND_IP ${BACKEND_IP}
-
-             #cat ./.circleci/ansible/inventory.txt
-             #curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
-             #--request PUT \
-             #--data "$BACKEND_IP" https://api.memstash.io/values/BACKEND_IP
-              aws ec2 describe-instances \
-              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+             echo "[web]" > .circleci/ansible/inventory.txt
+             BACKEND_IP=$(aws ec2 describe-instances \
               --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
-              --output text >> .circleci/ansible/inventory.txt
-              BACKEND_IP=`cat .circleci/ansible/inventory.txt | head -2 | tail -1`
-              echo "BACKEND_IP: ${BACKEND_IP}"
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --output text)
+             echo ${BACKEND_IP} >> ./.circleci/ansible/inventory.txt
+             echo BACKEND_IP ${BACKEND_IP}
 
       - persist_to_workspace:
            root: ~/
@@ -204,7 +194,7 @@ jobs:
              - project/.circleci/ansible/inventory.txt
 
       - destroy-environment
-
+      - revert-migrations
   
   configure-infrastructure:
     docker:
@@ -216,7 +206,7 @@ jobs:
           fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d']
 
       - attach_workspace:
-            at: ./.circleci/ansible 
+            at: ~/ 
 
       - run:
           name: Install dependencies
@@ -396,7 +386,7 @@ jobs:
               then
                 return 1
               else
-                return 1
+                return 0
             fi
       - run:
           name: smoke test for backend.
@@ -411,40 +401,52 @@ jobs:
 
       - destroy-environment 
       - revert-migrations
-      #  cloudfront-update:
-      #    docker:
-      #      # Docker image here that supports AWS CLI
-      #    steps:
-      #      # Checkout code from git
-      #      - run:
-      #          name: Install dependencies
-      #          command: |
-      #            # your code here
-      #      - run:
-      #          name: Update cloudfront distribution
-      #          command: |
-      #            # your code here
-      #      # Here's where you will add some code to rollback on failure  
-      #
-      #cleanup:
-      #    docker:
-      #      # Docker image here
-      #    steps:
-      #      # Checkout code from git
-      #      - run:
-      #          name: Get old stack workflow id
-      #          command: |
-      #            # your code here
-      #            export OldWorkflowID="the id here"
-      #            export STACKS=[] #put the list of stacks here
-      #      - run:
-      #          name: Remove old stacks and files
-      #          command: |
-      #            if [[ "${STACKS[@]}" =~ "${OldWorkflowID}" ]]
-      #            then
-      #              # your code here
-      #            fi
-      #            
+
+  cloudfront-update:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout 
+      - run:
+          name: Install dependencies
+          command: |
+            yum -y install tar gzip
+            curl -sL https://rpm.nodesource.com/setup_lts.x | bash -
+            yum -y install nodejs
+      - run:
+          name: Update cloudfront distribution
+          command: |
+            aws cloudformation deploy \
+            --template-file .circleci/files/cloudfront.yml \
+            --stack-name=udapeople-cloudfront \
+            --parameter-overrides WorkflowID="${CIRCLE_WORKFLOW_ID}" \
+            --tags project=udapeople
+      
+      - destroy-environment 
+      - revert-migrations
+
+  cleanup:
+    docker:
+    - image: amazon/aws-cli
+    steps:
+      - checkout 
+      - run:
+          name: Get old stack workflow id
+          command: |
+            export OldWorkflowID=$(aws cloudformation \
+            list-exports --query 'Exports[?Name==`WorkflowID`].Value' \
+            --no-paginate --output text)
+            
+            export STACKS=($aws cloudformation list-stacks --query "StackSummaries[*].StackName" \
+            --stack-status-filter CREATE_COMPLETE --no-paginate --output text)          
+            echo Old Workflow Id: "${OldWorkflowID}"
+            echo New Workflow Id: "${CIRCLE_WORKFLOW_ID}"
+            if [[ "${STACKS[@]}" =~ "${OldWorkflowID}" ]]
+            then
+              aws s3 rm "s3://udapeople-${OldWorkflowID}" --recursive
+              aws cloudformation delete-stack --stack-name "udapeople-prod-backendstack-${OldWorkflowID}"
+              aws cloudformation delete-stack --stack-name "udapeople-prod-frontendstack-${OldWorkflowID}"
+            fi
 
 workflows:
   default:
@@ -477,8 +479,8 @@ workflows:
            requires: [run-migrations]
        - smoke-test:
            requires: [deploy-backend, deploy-frontend]
-    #   - cloudfront-update:
-    #       requires: [smoke-test]
-    #   - cleanup:
-    #       requires: [cloudfront-update]
+       - cloudfront-update:
+           requires: [smoke-test]
+       - cleanup:
+           requires: [cloudfront-update]
 

@@ -46,16 +46,19 @@
     cd /home/ubuntu/backend
     npm install
     npm install --only=dev
+
 - name: Build package
   shell: |
     cd /home/ubuntu/backend
     npm run build
     cat .env
     npm run prestart:prod
+
 - name: Start PM2
   shell: |
     cd /home/ubuntu/backend
     pm2 start npm --no-automation --name "backend" -- run start
+
 - name: start pm2 for dist/main.js
   become: no
   shell: pm2 start main.js
