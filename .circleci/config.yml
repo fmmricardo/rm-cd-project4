@@ -166,20 +166,20 @@ jobs:
             aws cloudformation deploy \
               --template-file .circleci/files/backend.yml \
               --tags project=udapeople-backend-${CIRCLE_WORKFLOW_ID} \
-               --stack-name udapeople-backend-${CIRCLE_WORKFLOW_ID} \
-               --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
+              --stack-name udapeople-backend-${CIRCLE_WORKFLOW_ID} \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
       - run:
           name: Ensure front-end infrastructure exist
           command: |
               aws cloudformation deploy \
                 --template-file .circleci/files/frontend.yml \
                 --tags project=udapeople-frontend-${CIRCLE_WORKFLOW_ID} \
-                 --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID} \
-                 --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
+                --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID} \
+                --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
       - run:
           name: Add back-end ip to ansible inventory
           command: |
-             echo "[web]" > .circleci/ansible/inventory.txt
+             #echo "[web]" > .circleci/ansible/inventory.txt
              #BACKEND_IP=$(aws ec2 describe-instances \
              # --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
              # --query 'Reservations[*].Instances[*].PublicIpAddress' \
@@ -191,17 +191,18 @@ jobs:
              #curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
              #--request PUT \
              #--data "$BACKEND_IP" https://api.memstash.io/values/BACKEND_IP
-            aws ec2 describe-instances \
-            --query 'Reservations[*].Instances[*].PublicIpAddress' \
-            --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
-            --output text >> .circleci/ansible/inventory.txt
-            BACKEND_IP=`cat .circleci/ansible/inventory.txt | head -2 | tail -1`
-            echo "BACKEND_IP: ${BACKEND_IP}"
+              aws ec2 describe-instances \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
+              --output text >> .circleci/ansible/inventory.txt
+              BACKEND_IP=`cat .circleci/ansible/inventory.txt | head -2 | tail -1`
+              echo "BACKEND_IP: ${BACKEND_IP}"
 
       - persist_to_workspace:
-          root: .circleci/ansible
-          paths:
-            - inventory.txt
+           root: ~/
+           paths:
+             - project/.circleci/ansible/inventory.txt
+
       - destroy-environment
 
   
@@ -234,7 +235,6 @@ jobs:
           command: |
             echo PWD $(pwd)
             ansible-playbook -i inventory.txt configure-server.yml
-            #exit 1
       - destroy-environment
   
   run-migrations:
@@ -396,7 +396,7 @@ jobs:
               then
                 return 1
               else
-                return 0
+                return 1
             fi
       - run:
           name: smoke test for backend.
@@ -475,8 +475,8 @@ workflows:
            requires: [run-migrations]
        - deploy-backend:
            requires: [run-migrations]
-           # - smoke-test:
-           #     requires: [deploy-backend, deploy-frontend]
+       - smoke-test:
+           requires: [deploy-backend, deploy-frontend]
     #   - cloudfront-update:
     #       requires: [smoke-test]
     #   - cleanup:
