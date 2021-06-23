@@ -180,17 +180,24 @@ jobs:
           name: Add back-end ip to ansible inventory
           command: |
              echo "[web]" > .circleci/ansible/inventory.txt
-             BACKEND_IP=$(aws ec2 describe-instances \
-              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
-              --query 'Reservations[*].Instances[*].PublicIpAddress' \
-              --output text)
-             echo ${BACKEND_IP} >> ./.circleci/ansible/inventory.txt
-             echo BACKEND_IP ${BACKEND_IP}
+             #BACKEND_IP=$(aws ec2 describe-instances \
+             # --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
+             # --query 'Reservations[*].Instances[*].PublicIpAddress' \
+             # --output text)
+             #echo ${BACKEND_IP} >> ./.circleci/ansible/inventory.txt
+             #echo BACKEND_IP ${BACKEND_IP}
 
-             cat ./.circleci/ansible/inventory.txt
-             curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
-             --request PUT \
-             --data "$BACKEND_IP" https://api.memstash.io/values/BACKEND_IP
+             #cat ./.circleci/ansible/inventory.txt
+             #curl -H "Content-Type: text/plain" -H "token: ac7bae0c-4466-4e1d-8e7c-47338a852c5f" \
+             #--request PUT \
+             #--data "$BACKEND_IP" https://api.memstash.io/values/BACKEND_IP
+            aws ec2 describe-instances \
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
+            --output text >> .circleci/ansible/inventory.txt
+            BACKEND_IP=`cat .circleci/ansible/inventory.txt | head -2 | tail -1`
+            echo "BACKEND_IP: ${BACKEND_IP}"
+
       - persist_to_workspace:
           root: .circleci/ansible
           paths:
