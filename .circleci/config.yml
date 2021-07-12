@@ -14,7 +14,7 @@ commands:
     steps:
       - run:
           name: Destroy environments
-          when: << parameters.when_to_run >> 
+          when: << parameters.when_to_run >>
           command: |
             aws cloudformation delete-stack \
               --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID}
@@ -40,14 +40,14 @@ commands:
               npm install
               npm run migrations:revert
               exit 1
-            fi            
+            fi
 jobs:
   notify:
     docker:
       - image: 'cimg/base:stable'
     steps:
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -70,9 +70,9 @@ jobs:
       - save_cache:
           paths: [frontend/node_modules]
           key: frontend-build
-      
+
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -93,9 +93,9 @@ jobs:
       - save_cache:
           paths: [backend/node_modules]
           key: backend-build
-      
+
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -112,9 +112,9 @@ jobs:
            cd frontend
            npm install
            npm run test4ci
-      
+
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -132,17 +132,17 @@ jobs:
            npm install
            npm run test
       - run:
-          name: e2e test backend-end 
+          name: e2e test backend-end
           command: |
            cd backend
            npm install
            npm run test
-      
+
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
-            
+
   scan-frontend:
     docker:
       - image: circleci/node:13.8.0
@@ -157,7 +157,7 @@ jobs:
            npm audit fix --audit-level=critical --force
 
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -172,6 +172,7 @@ jobs:
           name: scan back-end
           command: |
            cd backend
+           npm install
            npm audit fix --audit-level=critical --force
 
       - slack/notify:
@@ -220,45 +221,45 @@ jobs:
       - destroy-environment
       - revert-migrations
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
-  
+
   configure-infrastructure:
     docker:
-      - image: python:3.7-alpine3.12 
-      
+      - image: python:3.7-alpine3.12
+
     steps:
       - checkout
       - add_ssh_keys:
           fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d']
 
       - attach_workspace:
-            at: ~/ 
+            at: ~/
 
       - run:
           name: Install dependencies
           command: |
-            apk add --update ansible 
+            apk add --update ansible
             apk add --update curl
             apk add --update gzip
-            apk add --update nodejs 
+            apk add --update nodejs
             apk add --update py3-pip
             apk add --update tar
             pip3 install awscli
 
       - run:
           name: Configure server
-          working_directory: ./.circleci/ansible 
+          working_directory: ./.circleci/ansible
           command: |
             echo PWD $(pwd)
             ansible-playbook -i inventory.txt configure-server.yml
       - destroy-environment
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
-  
+
   run-migrations:
     docker:
       - image: circleci/node:13.8.0
@@ -278,7 +279,7 @@ jobs:
       - run:
           name: Run migrations
           command: |
-            cd backend 
+            cd backend
             sudo npm i -g pm2
             sudo npm install typescript
 
@@ -312,7 +313,7 @@ jobs:
             fi
       - revert-migrations
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -334,7 +335,7 @@ jobs:
 
       - attach_workspace:
           at: ~/
-            
+
       - run:
           name: Get backend url
           command: |
@@ -361,18 +362,18 @@ jobs:
 
       - destroy-environment
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
-                    
+
   deploy-backend:
     docker:
-      - image: python:3.7-alpine3.12 
+      - image: python:3.7-alpine3.12
     steps:
       - checkout
       - add_ssh_keys:
           fingerprints: ['7f:b0:56:93:84:62:8f:47:4d:82:dd:ae:7a:86:85:2d']
-  
+
       - attach_workspace:
             at: ~/
       - run:
@@ -401,18 +402,18 @@ jobs:
             BACKEND_IP=`cat inventory.txt | head -2 | tail -1`
             echo "BACKEND_IP: ${BACKEND_IP}"
             ansible-playbook -i inventory.txt deploy-backend.yml
-      
+
       - destroy-environment
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
   smoke-test:
     docker:
-      - image: python:3.7-alpine3.12 
+      - image: python:3.7-alpine3.12
     steps:
-      - checkout 
+      - checkout
       - run:
           name: Install dependencies
           command: |
@@ -421,7 +422,7 @@ jobs:
       - run:
           name: smoke test frontend
           command: |
-            URL="http://udapeople-frontend-${CIRCLE_WORKFLOW_ID}.s3-website-${AWS_DEFAULT_REGION}.amazonaws.com/#/employees"            
+            URL="http://udapeople-frontend-${CIRCLE_WORKFLOW_ID}.s3-website-${AWS_DEFAULT_REGION}.amazonaws.com/#/employees"
             if curl -s ${URL} | grep "Welcome"
               then
                 return 1
@@ -439,10 +440,10 @@ jobs:
             curl "http://${BACKEND_IP}:3030/api/status"
 
 
-      - destroy-environment 
+      - destroy-environment
       - revert-migrations
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -450,7 +451,7 @@ jobs:
     docker:
       - image: amazon/aws-cli
     steps:
-      - checkout 
+      - checkout
       - run:
           name: Install dependencies
           command: |
@@ -465,11 +466,11 @@ jobs:
             --stack-name=udapeople-cloudfront \
             --parameter-overrides WorkflowID="${CIRCLE_WORKFLOW_ID}" \
             --tags project=udapeople
-      
-      - destroy-environment 
+
+      - destroy-environment
       - revert-migrations
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -477,16 +478,16 @@ jobs:
     docker:
     - image: amazon/aws-cli
     steps:
-      - checkout 
+      - checkout
       - run:
           name: Get old stack workflow id
           command: |
             export OldWorkflowID=$(aws cloudformation \
             list-exports --query 'Exports[?Name==`WorkflowID`].Value' \
             --no-paginate --output text)
-            
+
             export STACKS=($aws cloudformation list-stacks --query "StackSummaries[*].StackName" \
-            --stack-status-filter CREATE_COMPLETE --no-paginate --output text)          
+            --stack-status-filter CREATE_COMPLETE --no-paginate --output text)
             echo Old Workflow Id: "${OldWorkflowID}"
             echo New Workflow Id: "${CIRCLE_WORKFLOW_ID}"
             if [[ "${STACKS[@]}" =~ "${OldWorkflowID}" ]]
@@ -497,7 +498,7 @@ jobs:
             fi
 
       - slack/notify:
-          event: fail 
+          event: fail
           template: basic_fail_1
           channel: '#devOps'
 
@@ -536,4 +537,3 @@ workflows:
            requires: [smoke-test]
        - cleanup:
            requires: [cloudfront-update]
-
