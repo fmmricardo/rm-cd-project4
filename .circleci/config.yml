@@ -345,12 +345,14 @@ jobs:
             API_URL="http://${BACKEND_IP}:3030"
             echo "API_URL: ${API_URL}"
             export API_URL=${API_URL}
-            echo "${API_URL}" >> "frontend/.env"
+            #echo "${API_URL}" >> "frontend/.env"
+            echo "API_URL= ${API_URL}" > "frontend/.env"
+
       - run:
           name: Deploy frontend objects
           command: |
-            # cd frontend
             cd frontend
+            cat .env
             npm install
             sudo npm install webpack
             npm run build:prod

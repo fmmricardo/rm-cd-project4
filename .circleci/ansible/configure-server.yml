@@ -8,7 +8,7 @@
     ansible_host_key_checking: false
     ansible_stdout_callback: yaml
     environment:
-      #NODE_ENV: "{{ lookup('env','NODE_ENV') }}"
+          NODE_ENV: "{{ lookup('env','NODE_ENV') }}"
           ENVIRONMENT: "{{ lookup('env','ENVIRONMENT') }}"
           TYPEORM_CONNECTION: "{{ lookup('env','TYPEORM_CONNECTION') }}"
           TYPEORM_MIGRATIONS_DIR: "{{ lookup('env','TYPEORM_MIGRATIONS_DIR') }}"
