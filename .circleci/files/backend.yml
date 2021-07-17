@@ -27,16 +27,28 @@ Resources:
           CidrIp: 0.0.0.0/0
           Description: "Prometheus Node Exporter service port"
 
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+     Domain: vpc
+     Tags:
+       - Key: Name
+         Value: !Sub elastic-ip-${ID}
+
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t2.micro
       SecurityGroups:
         - Ref: InstanceSecurityGroup
-      KeyName: udapeople # If you use another key pair name, you should change this value to match.
-      # If this ami id is not available for you, you can find another (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/finding-an-ami.html)
-      # Ubuntu 18 or higher works fine
-      ImageId: ami-09e67e426f25ce0d7 
+      KeyName: udapeople
+      ImageId: ami-09e67e426f25ce0d7
       Tags:
         - Key: Name
           Value: !Sub backend-${ID}
+
+  InstanceEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      EIP: !Ref NatGatewayEIP
+      InstanceId: !Ref EC2Instance

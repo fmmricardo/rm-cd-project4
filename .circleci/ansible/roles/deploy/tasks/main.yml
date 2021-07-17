@@ -41,7 +41,7 @@
     dest: /root
     force: no
 
-- name: Install Node 
+- name: Install Node
   shell: |
     cd /home/ubuntu/backend
     npm install
@@ -57,10 +57,10 @@
 - name: Start PM2
   shell: |
     cd /home/ubuntu/backend
-    pm2 start npm --no-automation --name "backend" -- run start
+    pm2 start npm --name "backend" -- run start
 
-- name: start pm2 for dist/main.js
-  become: no
-  shell: pm2 start main.js
-  args:
-    chdir: /home/ubuntu/backend/dist
+    #- name: start pm2 for dist/main.js
+    #  become: no
+    #  shell: pm2 start main.js
+    #  args:
+    #    chdir: /home/ubuntu/backend/dist

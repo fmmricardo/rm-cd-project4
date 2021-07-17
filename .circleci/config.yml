@@ -31,7 +31,6 @@ commands:
           name: Revert migrations
           when: on_fail
           command: |
-            # Curl command here to see if there was a successful migration associated with the workflow id, store result in SUCCESS variable
             SUCCESS=$(curl -H "token:  ${CIRCLE_WORKFLOW_ID}" \
               --request GET https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID})
             if(( $SUCCESS==1 ));
@@ -206,12 +205,24 @@ jobs:
           name: Add back-end ip to ansible inventory
           command: |
              echo "[web]" > .circleci/ansible/inventory.txt
+
              BACKEND_IP=$(aws ec2 describe-instances \
               --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
               --query 'Reservations[*].Instances[*].PublicIpAddress' \
               --output text)
              echo ${BACKEND_IP} >> ./.circleci/ansible/inventory.txt
              echo BACKEND_IP ${BACKEND_IP}
+
+             #  ELASTIC_IP=$(aws ec2 describe-addresses \
+             #   --query 'Addresses[0].PublicIp' \
+             #   --filters "Name=tag:project, Values=udapeople" "Name=tag:Name, Values=elastic-ip-${CIRCLE_WORKFLOW_ID}" \
+             #   --output text)
+             #  echo ${ELASTIC_IP} >> ./.circleci/ansible/inventory.txt
+             #  echo ELASTIC_IP ${ELASTIC_IP}
+
+             #  BACKEND_IP=`cat .circleci/ansible/inventory.txt | tail -1`
+             #  echo NEW_BACKEND_IP ${BACKEND_IP}
+
 
       - persist_to_workspace:
            root: ~/
